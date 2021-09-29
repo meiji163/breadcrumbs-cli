@@ -1,11 +1,11 @@
-// Breadcrumbs game solver.
 // For the rules see jjayeon.github.io/breadcrumbs/
 package main
 
 import (
 	"fmt"
 	"time"
-    "container/heap"
+    "os"
+    "math/rand"
 )
 
 const (
@@ -15,6 +15,7 @@ const (
 	green = 3 // goal
 )
 
+// Game state
 type State struct {
 	color int
 	dir   int // N,E,S,W = 0,1,2,3
@@ -24,35 +25,41 @@ type State struct {
 
 // Print the board with the ant
 func PrintState(s State, board [][]int) {
-	fmt.Print("    ")
+	fmt.Print("            ")
 	for i := 0; i < len(board); i++ {
 		fmt.Printf("%d ", i)
 	}
 	fmt.Print("\n")
+
+    colorRed := string("\033[31m")
+    colorGreen := string("\033[32m")
+    colorReset := string("\033[0m")
+
 	for i, row := range board {
-		fmt.Printf("  %d ", i)
+		fmt.Printf("\t  %d ", i)
 		for j, v := range row {
 			if i == s.x && j == s.y {
 				switch s.dir {
 				case 0:
-					fmt.Printf("↑ ")
+					fmt.Print(colorGreen,"△ ")
 				case 1:
-					fmt.Printf("→ ")
+					fmt.Print(colorGreen,"▻ ")
 				case 2:
-					fmt.Printf("↓ ")
+					fmt.Print(colorGreen,"▽ ")
 				case 3:
-					fmt.Printf("← ")
+					fmt.Print(colorGreen,"◅ ")
 				}
+                fmt.Print(colorReset)
 			} else {
 				switch v {
 				case 0:
-					fmt.Printf(". ")
+					fmt.Printf("◻ ")
 				case 1:
-					fmt.Printf("* ")
+					fmt.Printf("◼ ")
 				case 2:
-					fmt.Printf("$ ")
+					fmt.Print(colorRed,"▩ ", colorReset)
 				case 3:
-					fmt.Printf("! ")
+                    fmt.Print(colorGreen,"◈ ",colorReset)
 				}
 			}
 		}
@@ -72,7 +79,7 @@ func PrintSolution(path []State, board [][]int) {
 		}
 	}
 	for i := len(path) - 1; i >= 0; i-- {
-		fmt.Print("\033c")
+        fmt.Print("\033[H\033[2J")
 		PrintState(path[i], board)
 		time.Sleep(200 * time.Millisecond)
 	}
@@ -127,87 +134,106 @@ func nextState(s State, board [][]int) State {
 	return next
 }
 
-// Find a solution to Breadcrumbs board with the minimum number of flips,
-// or return with err code -1 if it is impossible.
-// Return map with reversed state path
-func Solve(board [][]int) (map[State]State, int) {
-	//size := len(board)
-	pq := make(PriorityQueue, 0)
-	score := map[State]int{} // minimum score
-	done := map[State]bool{} // processed states
-	prev := map[State]State{} // previous state in the optimal path
+func PrintTitle(){
+    spaces := "                                             "
+    for i:=0; i<37; i++ {
+        fmt.Print("\033[H\033[2J")
+        fmt.Print(`
+        ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+        ██░▄▄▀█░▄▄▀█░▄▄█░▄▄▀█░▄▀█▀▄▀█░▄▄▀█░██░█░▄▀▄░█░▄▄▀█░▄▄
+        ██░▄▄▀█░▀▀▄█░▄▄█░▀▀░█░█░█░█▀█░▀▀▄█░██░█░█▄█░█░▄▄▀█▄▄▀
+        ██░▀▀░█▄█▄▄█▄▄▄█▄██▄█▄▄███▄██▄█▄▄██▄▄▄█▄███▄█▄▄▄▄█▄▄▄
+        ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+        `)
 
-	start := State{board[0][0], 1, 0, 0}
-	heap.Push(&pq, &Item{value: start, priority: 0, index: 0})
-	score[start] = 0
 
-	for len(pq) > 0 {
-		// find min score state not yet processed
-		minItem := heap.Pop(&pq).(*Item)
-		minState := minItem.value
+        fmt.Println()
+        if i % 2 == 0 {
+            fmt.Print(
+                spaces+" ,       \n"+
+                spaces+":@.o.(_)\n"+
+                spaces+"/  |  |\\\n")
+        }else{
+            fmt.Print(
+                spaces+" ,      \n"+
+                spaces+":@.o.(_)\n"+
+                spaces+" | | /\\\n")
+        }
+        spaces = string(spaces[1:])
+		time.Sleep(60 * time.Millisecond)
+    }
+}
 
-		if minState.color == green {
-			return prev, minState.dir
-		}
-		done[minState] = true
+func GenBoard(size int, pRed, pWhite float64) [][]int {
+    board := make([][]int, size)
+    for i := range board {
+        board[i] = make([]int, size)
+        for j := range board[i] {
+            r := rand.Float64()
+            if r < pRed {
+                board[i][j] = 2
+            } else if r >= pRed && r < pRed + pWhite {
+                board[i][j] = 0
+            } else {
+                board[i][j] = 1
+            }
+        }
+    }
+    board[0][0] = 0
+    board[size-1][size-1] = 3
+    return board
+}
 
-		// next state without flipping
-		next0 := nextState(minState, board)
-		_, foundState := done[next0]
-		if !foundState && next0.color != red {
-			_, foundScore := score[next0]
-			if !foundScore || (score[minState] < score[next0]) {
-				score[next0] = score[minState]
-				prev[next0] = minState
-				heap.Push(&pq, &Item{value: next0, priority: score[next0]})
-			}
-		}
+func InputBoardSize() int{
+    var size int
+    for {
+        fmt.Print("Enter Board Size (default 6) >")
+        n, err := fmt.Fscanln(os.Stdin, &size)
+        if (n ==0){
+            return 6
+        }else if err == nil && (size > 3 && size < 40){
+            return size
+        }
+		time.Sleep(100 * time.Millisecond)
+    }
+}
 
-		// next state with flipping
-		next1 := flip(next0)
-		_, foundState = done[next1]
-		if !foundState && next1.color != red {
-			_, foundScore := score[next1]
-			if !foundScore || (score[minState]+1 < score[next1]) {
-				score[next1] = score[minState] + 1
-				prev[next1] = minState
-				heap.Push(&pq, &Item{value: next1, priority: score[next1]})
-			}
-		}
-	}
-	return prev, -1
+func RunGame(state State, board [][]int, kill chan bool) {
+    for {
+        select{
+        case <- kill:
+            return
+        default :
+            fmt.Print("\033[H\033[2J")
+            if state.color == red {
+                return
+            } else if state.color == green {
+                return
+            }
+            PrintState(state, board)
+            time.Sleep(200 * time.Millisecond)
+            state = nextState(state, board)
+        }
+    }
 }
 
 func main() {
-	size := 6
-	board := [][]int{
-		{0, 0, 0, 0, 0, 0},
-		{0, 1, 2, 1, 1, 1},
-		{0, 0, 0, 0, 0, 1},
-		{0, 0, 0, 0, 1, 2},
-		{1, 0, 2, 1, 1, 0},
-		{0, 0, 0, 0, 0, 3},
-	}
-	prev, ex := Solve(board)
-	if ex == -1 {
-		fmt.Println("Unsolvable board!")
-	} else {
-		// retrace the path
-		s := State{}
-		if ex == 1 {
-			s = State{board[size-1][size-2], 1, size - 1, size - 2}
-		} else if ex == 2 {
-			s = State{board[size-2][size-1], 2, size - 2, size - 1}
-		}
-		path := []State{}
-		for {
-			path = append(path, s)
-			last, ok := prev[s]
-			if !ok {
-				break
-			}
-			s = last
-		}
-		PrintSolution(path, board)
-	}
+    rand.Seed(time.Now().UnixNano())
+    PrintTitle()
+    size := InputBoardSize()
+
+    pRed := 1/float64(2*size)
+    pWhite := (1 - pRed)/2
+    board := GenBoard(size, pRed, pWhite)
+	start := State{board[0][0], 1, 0, 0}
+    PrintState(start, board)
+
+    done := make(chan bool, 1)
+    for {
+        go RunGame(start,board,done)
+        fmt.Scanln()
+        done <- true
+        time.Sleep(200 * time.Millisecond)
+        fmt.Print("\033[H\033[2J")
+    }
 }
